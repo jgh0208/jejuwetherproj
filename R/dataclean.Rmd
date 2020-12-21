@@ -1,0 +1,178 @@
+---
+title: "dataclean"
+author: "20173250 정경현"
+date: "2019년 7월 9일"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+#rjava error
+```{r}
+#install.packages("XLConnect")
+#library(XLConnect)
+#Sys.setenv(JAVA_HOME='C:/Program Files/Java/jre1.8.0_261')
+
+#install.packages("rJava")
+#source("https://install-github.me/talgalili/installr")
+#installr::install.java()
+#library(rJava)
+```
+
+#데이터정리
+```{r}
+dt <- read.csv("./data/140601190630wether.csv")
+dt <- dt[,-1]
+
+colnames(dt) <- c("date","meantp","mintp","mintptime",
+                  "maxtp","maxtptime","precipitationtime","max10pre","max10pretime",
+                  "maxhourpre","maxhourpretime","dayprecipitation","maxmomentwindvel","maxmomentveltime",
+                  "maxwindvel","maxwindveltime","meanwindvel","meanrelativehumedity","maxhoursolarradiationtime",
+                  "maxhoursolarradiationvolume","sumsolar","daydeepsnowcm","daydeepsnowtime","alldaydeepsnow",
+                  "alldaydeepsnowtime","meangroundtp","meanground30tp","meanground500tp")
+
+names(dt)
+tsdt <- ts(dt,frequency = 365,start = c(2014,6,1))
+```
+
+#평균온도시계열데이터분석
+```{r}
+#평균온도 시계열그래프
+tsdtmeantp <- ts(dt[,c(1,2)],frequency = 365,start = c(2014,6,1),end = c(2019,6,30))
+plot.ts(tsdtmeantp[,2],main="평균기온시계열그래프",ylab="meantp")
+
+#이동평균 
+library(TTR)
+fittsdtmeantp <- SMA(tsdtmeantp[,2],n=7)
+fittsdtmeantp12 <- SMA(tsdtmeantp[,2],n=12)
+fittsdtmeantp60 <- SMA(tsdtmeantp[,2],n=60)
+par(mfrow=c(2,2))
+plot.ts(tsdtmeantp[,2],main="평균기온시계열그래프",ylab="meantp")
+plot.ts(fittsdtmeantp,main="SMA   n=7",ylab="meantp")
+plot.ts(fittsdtmeantp12,main="SMA   n=12",ylab="meantp")
+plot.ts(fittsdtmeantp60,main="SMA   n=60",ylab="meantp")
+
+#차분
+meantpdiff1 <- diff(tsdtmeantp[,2],diffrences=1)
+meantpdiff2 <- diff(tsdtmeantp[,2],diffrences=2)
+meantpdiff3 <- diff(tsdtmeantp[,2],diffrences=3)
+plot.ts(tsdtmeantp[,2],main="평균기온시계열그래프",ylab="meantp")
+plot.ts(meantpdiff1,main="diffrences=1",ylab="meantp")
+plot.ts(meantpdiff2,main="diffrences=2",ylab="meantp")
+plot.ts(meantpdiff3,main="diffrences=3",ylab="meantp")
+
+mean(meantpdiff1);sd(meantpdiff1)
+par(mfrow=c(1,1))
+acf(meantpdiff1,lag.max = 20)#acf가 0.25에서 절단값을 가짐
+pacf(meantpdiff1,lag.max = 20)#pacf가 0에서 절단값을 가짐
+
+atarm <- auto.arima(tsdtmeantp[,2]) #ARIMA(1,0,1)(0,1,0)
+
+(tsdtmeantparima <- arima(tsdtmeantp[,2],order = c(1,0,1),seasonal = list(order = c(1,0,1), period = 12)))
+(tsdtmeantparimafcast <- forecast(tsdtmeantparima,h=365))
+plot(tsdtmeantparimafcast)
+
+plot(stl(tsdtmeantp[,2],"periodic"))
+tsdtmeantpdcp <- decompose(tsdtmeantp[,2])
+attributes(tsdtmeantpdcp)
+plot(tsdtmeantpdcp)
+
+#계절성제외그래프
+plot(tsdtmeantp - tsdtmeantpdcp$seasonal)
+
+#트랜드제외그래프
+plot(tsdtmeantp - tsdtmeantpdcp$trend)
+
+#랜덤요인제외그래프
+plot(tsdtmeantp - tsdtmeantpdcp$random)
+
+acf(tsdtmeantp[,2],lag.max = 100)
+pacf(tsdtmeantp[,2],lag.max = 20)
+
+tsdiag(atarm)
+Box.test(atarm$residuals,lag=1,type="Ljung")#pvalue가 0.05이상이면모형이통계적으로 적절하다고 할 수 있다. 
+#예측
+fore <- forecast(atarm) #2년예측
+par(mfrow=c(1,2))
+plot(fore)
+fore2 <- forecast(atarm,h=1460)#4년예측 
+plot(fore2)
+```
+ 
+#강수량예측시계열데이터분석 dayprecipitation
+```{r}
+#일강수량 시계열그래프
+tsdtdayprecipitation <- ts(dt[,c(1,12)],frequency = 365,start = c(2014,6,1),end = c(2019,6,30))
+par(mfrow=c(1,1))
+plot.ts(tsdtdayprecipitation[,2],main="강수량시계열그래프",ylab="dayprecipitation")
+
+#이동평균 
+library(TTR)
+fittsdtdayprecipitation7 <- SMA(tsdtdayprecipitation[,2],n=7)
+fittsdtdayprecipitation12 <- SMA(tsdtdayprecipitation[,2],n=12)
+fittsdtdayprecipitation60 <- SMA(tsdtdayprecipitation[,2],n=60)
+par(mfrow=c(2,2))
+plot.ts(tsdtdayprecipitation[,2],main="강수량시계열그래프",ylab="dayprecipitation")
+plot.ts(fittsdtdayprecipitation7,main="SMA   n=7",ylab="dayprecipitation")
+plot.ts(fittsdtdayprecipitation12,main="SMA   n=12",ylab="dayprecipitation")
+plot.ts(fittsdtdayprecipitation60,main="SMA   n=60",ylab="dayprecipitation")
+
+#차분
+tsdtdayprecipitationdiff1 <- diff(tsdtdayprecipitation[,2],diffrences=1)
+tsdtdayprecipitationdiff2 <- diff(tsdtdayprecipitation[,2],diffrences=2)
+tsdtdayprecipitationdiff3 <- diff(tsdtdayprecipitation[,2],diffrences=3)
+plot.ts(tsdtdayprecipitation[,2],main="평균기온시계열그래프",ylab="dayprecipitaion")
+plot.ts(tsdtdayprecipitationdiff1,main="diffrences=1",ylab="dayprecipitation")
+plot.ts(tsdtdayprecipitationdiff2,main="diffrences=2",ylab="dayprecipitation")
+plot.ts(tsdtdayprecipitationdiff3,main="diffrences=3",ylab="dayprecipitation")
+
+mean(tsdtdayprecipitationdiff1);sd(tsdtdayprecipitationdiff1)
+par(mfrow=c(1,1))
+acf(tsdtdayprecipitationdiff1,lag.max = 20)#acf
+pacf(tsdtdayprecipitationdiff1,lag.max = 20)#pacf
+
+
+atarmdp <- auto.arima(tsdtdayprecipitation[,2]) #ARIMA(0,0,1)
+plot(atarmdp)
+
+(tsdtdayprecipitationarima <- arima(tsdtdayprecipitation[,2],order = c(0,0,1),seasonal = list(order = c(0,0,1), period = 12)))
+(tsdtdayprecipitationarimafcast <- forecast(tsdtdayprecipitationarima,h=365))
+plot(tsdtdayprecipitationarimafcast)
+
+plot(stl(tsdtdayprecipitation[,2],"periodic"))
+tsdtdayprecipitationdcp <- decompose(tsdtdayprecipitation[,2])
+attributes(tsdtdayprecipitationdcp)
+plot(tsdtdayprecipitationdcp)
+
+#계절성제외그래프
+plot(tsdtdayprecipitation - tsdtdayprecipitationdcp$seasonal)
+
+#트랜드제외그래프
+plot(tsdtdayprecipitation - tsdtdayprecipitationdcp$trend)
+
+#랜덤요인제외그래프
+plot(tsdtdayprecipitation - tsdtdayprecipitationdcp$random)
+
+acf(tsdtdayprecipitation[,2],lag.max = 20)
+pacf(tsdtdayprecipitation[,2],lag.max = 20)
+
+tsdiag(atarmdp)
+Box.test(atarmdp$residuals,lag=1,type="Ljung")#pvalue가 0.05이상이면모형이통계적으로 적절하다고 할 수 있다. 
+
+#예측
+library(forecast)
+foredp <- forecast(atarmdp) #2년예측
+par(mfrow=c(1,2))
+plot(foredp)
+foredp2 <- forecast(atarmdp,h=1460)#4년예측 
+plot(foredp2)
+
+
+
+```
+
+
+ 
